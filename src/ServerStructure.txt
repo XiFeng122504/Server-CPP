@@ -1,0 +1,34 @@
+@startuml
+
+class Server {
+    - server_fd:int
+    - epoll:Epoll
+    +Init():void
+    +Start():void
+    +Stop():void
+    
+}
+
+class Epoll {
+    -connectionList:map<int,Connection>
+    -epoll_fd:int
+
+    +add_epoll(int fd,std::shared_ptr):bool
+    +del_epoll(int fd):bool
+    +loop():void
+    +mod_epoll(int fd, uint32_t events):bool
+}
+
+class Connection{
+    -client_fd:int
+    -closed:bool
+
+    +hanlde_read():bool
+    +handle_write():bool
+    +handle_err():bool
+}
+
+
+Server ..> Epoll
+Epoll ..> Connection
+@enduml
