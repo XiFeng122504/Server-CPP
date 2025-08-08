@@ -1,6 +1,8 @@
 #include <Server.h>
+#include <cstring>
+#include <cerrno>
 
-/// @brife 构造函数，设置值为初始值
+/// @brief 构造函数，设置值为初始值
 ///
 ///
 Server::Server(const int port, const int max_Connection) {
@@ -16,14 +18,14 @@ Server::~Server() {
 
 bool Server::Init() {
     if (m_isInit) {
-        perror("this server has init.");
+        std::cerr << "this server has init." << std::endl;
         return false;
     }
 
     //  创建套接字
     m_nServeFd = socket(AF_INET, SOCK_STREAM, 0);
     if (m_nServeFd < 0) {
-        std::cout << "无法创建套接字" << std::endl;
+        std::cerr << "无法创建套接字" << std::endl;
         return false;
     }
 
@@ -39,22 +41,36 @@ bool Server::Init() {
 
     //  bind操作，绑定套接字到端口
     if (bind(m_nServeFd, (struct sockaddr*)&m_sServer_addr, sizeof(m_sServer_addr)) < 0) {
-        std::cerr << "绑定失败\n";
+        std::cerr << "绑定失败: " << strerror(errno) << std::endl;
         close(m_nServeFd);
         return false;
     }
+    m_isInit = true;
     return true;
 
 }
 
 bool Server::Start() {
     if (listen(m_nServeFd, m_nMAXCONNECTIONS) < 0) {
-        std::cerr << "监听失败";
+        std::cerr << "监听失败: " << strerror(errno) << std::endl;
         return false;
     }
     return true;
 }
 
 void Server::Stop() {
+    // TODO: Implement server stop logic, such as closing sockets and cleaning up resources.
+}
 
+bool Server::setOption(int optname, bool value, int level) {
+    if (m_isInit) { //  说明已经初始化了，那你setOption也没有意义了。
+        std::cerr << "[debug]" << "the server has Init, the setoption was invalid~" << std::endl;
+        return false;
+    }
+    if (m_nServeFd < 0) {
+        std::cerr << "[debug]" << "the server's fd was invalid, the setoption was failed" << std::endl;
+        return false;
+    }
+    m_options[{level, optname}] = value;
+    return true;
 }

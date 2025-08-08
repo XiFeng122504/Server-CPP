@@ -32,14 +32,19 @@ public:
 
     /**
      *  设置服务器选项
+     *  @param optname 选项名称
+     *  @param value 选项值
+     *  @param level 选项级别，默认SOL_SOCKET
      */
-    bool setOption();
+    bool setOption(int optname, bool value, int level = SOL_SOCKET);
 
 private:
     //  服务器fd，用于监听其他socket连接本fd
     int m_nServeFd;
     //  是否初始化，判断服务器是否已经进行过初始化
     bool m_isInit = false;
+    //  增加一个map存储选项，<value, optname>, bool
+    std::map<std::pair<int, int>, bool> m_options;
 
     //  Epoll实例化对象，用于IO多路复用的epoll方式的封装
     std::unique_ptr<Epoll> m_pEpoll;
