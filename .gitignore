@@ -3,6 +3,10 @@ bin-debug/
 bin-release/
 [Oo]bj/
 [Bb]in/
+build/
+.ccls-cache/
+.vim/
+.vscode/
 
 # Other files and folders
 .settings/
@@ -12,6 +16,7 @@ bin-release/
 *.air
 *.ipa
 *.apk
+*.o
 
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important

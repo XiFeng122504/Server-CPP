@@ -1,3 +1,0 @@
-/home/cqs/Project/VimUsing/build/CMakeFiles/VimUsing.dir
-/home/cqs/Project/VimUsing/build/CMakeFiles/edit_cache.dir
-/home/cqs/Project/VimUsing/build/CMakeFiles/rebuild_cache.dir

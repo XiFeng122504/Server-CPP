@@ -1,7 +1,0 @@
-[
-{
-  "directory": "/home/cqs/Project/VimUsing/build",
-  "command": "/usr/bin/c++  -I/home/cqs/Project/VimUsing/./include  -o CMakeFiles/VimUsing.dir/src/main.cpp.o -c /home/cqs/Project/VimUsing/src/main.cpp",
-  "file": "/home/cqs/Project/VimUsing/src/main.cpp"
-}
-]
