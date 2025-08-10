@@ -29,11 +29,6 @@ bool Server::Init() {
         return false;
     }
 
-    //  新建epoll对象
-    m_pEpoll = std::make_unique<Epoll>();
-
-
-
     //  配置服务器地址
     m_sServer_addr.sin_family = AF_INET;
     m_sServer_addr.sin_addr.s_addr = INADDR_ANY;
@@ -46,8 +41,11 @@ bool Server::Init() {
         return false;
     }
     m_isInit = true;
-    return true;
 
+    //  新建epoll对象
+    m_pEpoll = std::make_unique<Epoll>();
+
+    return true;
 }
 
 bool Server::Start() {

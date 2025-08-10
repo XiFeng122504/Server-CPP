@@ -3,15 +3,17 @@
 #include <map>
 #include <memory>
 #include <Connection.h>
+#include <sys/epoll.h>
+#include <iostream>
 
 class Epoll {
 public:
     Epoll();
     ~Epoll();
 
-    void add_epoll(int fd, std::shared_ptr<Connection>);
-    void del_epoll(int fd);
-    void mod_epoll(int fd, uint32_t events);
+    bool add_epoll(int fd, uint32_t events, std::shared_ptr<Connection>);
+    bool del_epoll(int fd);
+    bool mod_epoll(int fd, uint32_t events);
     void loop();
 
 private:
