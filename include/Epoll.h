@@ -5,6 +5,7 @@
 #include <Connection.h>
 #include <sys/epoll.h>
 #include <iostream>
+#include <vector>
 
 class Epoll {
 public:
@@ -20,6 +21,7 @@ private:
     int epoll_fd;
     std::map<int, std::shared_ptr<Connection>> connections_map;
 
+    bool stopFlag = false;
 };
 
 #endif//_EPOLL_H

@@ -62,5 +62,70 @@ bool Epoll::add_epoll(int fd, uint32_t events, std::shared_ptr<Connection> conn)
 }
 
 void Epoll::loop() {
-    //TODO:等待实现
+    //  事件循环一共处理多少个事件。
+    const int MAX_EVENTS = 64;
+    std::vector<epoll_event> events(MAX_EVENTS);
+
+    //  stopFlag本来是true，即不停止的，一直循环。
+    while (!stopFlag) {
+        //  epoll等待epollfd的事件，events.data，好像都没有啊？
+        int n = epoll_wait(epoll_fd, events.data(), MAX_EVENTS, -1);
+
+        //  n == -1，是信号中断对吗？
+        if (n == -1) {
+            // 被信号中断是常见情况，不应该退出
+            if (errno == EINTR) {
+                continue;
+            }
+            std::cerr << "epoll_wait error: " << errno << std::endl;
+            break;
+        }
+
+        // 处理所有就绪的事件
+        for (int i = 0; i < n; ++i) {
+            // 获取存储在data.ptr中的Connection对象
+            Connection* conn = static_cast<Connection*>(events[i].data.ptr);
+            if (!conn) {
+                std::cerr << "Invalid connection pointer" << std::endl;
+                continue;
+            }
+
+            uint32_t current_events = events[i].events;
+
+            // 处理错误或挂起事件
+            if (current_events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
+                std::cerr << "Connection error or closed by peer, fd: " << conn->getFd() << std::endl;
+                del_epoll(conn->get_fd()); // 移除连接
+                continue;
+            }
+
+            // 处理可读事件
+            if (current_events & EPOLLIN) {
+                if (!conn->handle_read()) {
+                    std::cerr << "Handle read failed, fd: " << conn->get_fd() << std::endl;
+                    del_epoll(conn->get_fd());
+                    continue;
+                }
+            }
+
+            // 处理可写事件
+            if (current_events & EPOLLOUT) {
+                if (!conn->handle_write()) {
+                    std::cerr << "Handle write failed, fd: " << conn->get_fd() << std::endl;
+                    del_epoll(conn->get_fd());
+                    continue;
+                }
+
+                // 如果数据已全部发送完毕，可以取消关注EPOLLOUT事件
+                if (conn->write_complete()) {
+                    mod_epoll(conn->get_fd(), EPOLLIN);
+                }
+            }
+        }
+
+
+    }
+
+
+
 }
