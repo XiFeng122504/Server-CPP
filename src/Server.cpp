@@ -58,6 +58,24 @@ bool Server::Start() {
 
 void Server::Stop() {
     // TODO: Implement server stop logic, such as closing sockets and cleaning up resources.
+    if (m_nServeFd >= 0) {
+        //  说明此时还未关闭套接字
+        close(m_nServeFd);
+        m_nServeFd = -1;
+    }
+
+    //  epoll 在监听事件，因此在等待结束，所以我们实现一个函数将他Stop
+    if (m_pEpoll) {
+        m_pEpoll->stop();
+    }
+
+    //  重置epoll
+    m_pEpoll.reset();
+
+    //  重置服务器得状态。
+    m_isInit = false;
+
+    std::cout << "the server is stopped" << std::endl;
 }
 
 bool Server::setOption(int optname, bool value, int level) {

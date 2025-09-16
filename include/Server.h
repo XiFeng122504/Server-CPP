@@ -1,5 +1,5 @@
-#ifndef _SEVER_H
-#define _SEVER_H
+#ifndef _SERVER_H
+#define _SERVER_H
 #include <Epoll.h>
 #include <sys/socket.h>
 #include <iostream>
@@ -57,4 +57,4 @@ private:
     int m_nMAXCONNECTIONS = 10;
 };
 
-#endif //_SEVER_H
+#endif //_SERVER_H

@@ -2,10 +2,11 @@
 #define _EPOLL_H
 #include <map>
 #include <memory>
-#include <Connection.h>
 #include <sys/epoll.h>
 #include <iostream>
 #include <vector>
+
+class Connection;
 
 class Epoll {
 public:
@@ -17,6 +18,7 @@ public:
     bool mod_epoll(int fd, uint32_t events);
     void loop();
 
+    void stop();
 private:
     int epoll_fd;
     std::map<int, std::shared_ptr<Connection>> connections_map;

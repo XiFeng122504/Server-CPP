@@ -1,4 +1,6 @@
 #include "Epoll.h"
+#include <Connection.h>
+
 
 Epoll::Epoll() {
     //  创建epoll对象，拿到文件描述符
@@ -12,6 +14,20 @@ Epoll::Epoll() {
 Epoll::~Epoll() {
 
 }
+
+
+void Epoll::stop() {
+    stopFlag = true;
+
+    if (epoll_fd >= 0) {
+        close(epoll_fd);
+        epoll_fd = -1;
+    }
+
+    connections_map.clear();
+}
+
+
 
 bool Epoll::del_epoll(int fd) {
     auto it = connections_map.find(fd);

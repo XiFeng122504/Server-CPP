@@ -1,6 +1,6 @@
 #include "Connection.h"
 #include <cstring>
-
+#include "Epoll.h"
 
 Connection::Connection(int client_fd, Epoll* epoll) {
     m_nClient_fd = client_fd;

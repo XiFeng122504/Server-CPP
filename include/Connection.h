@@ -7,7 +7,7 @@
 #include <errno.h>  // 或 <cerrno>
 #include <sys/socket.h>
 
-#include "Epoll.h"
+class Epoll;
 
 class Connection {
 public:
