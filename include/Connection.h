@@ -11,7 +11,7 @@
 
 class Connection {
 public:
-    Connection(Epoll* epoll = nullptr);
+    Connection(int client_fd, Epoll* epoll = nullptr);
     ~Connection();
 
     bool handle_write();
@@ -22,7 +22,7 @@ public:
 
     int get_fd();
 
-    void process_request();
+    void process_request() {};
 private:
     Epoll* m_pEpoll;
     int m_nClient_fd;

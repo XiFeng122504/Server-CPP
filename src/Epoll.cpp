@@ -94,7 +94,7 @@ void Epoll::loop() {
 
             // 处理错误或挂起事件
             if (current_events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-                std::cerr << "Connection error or closed by peer, fd: " << conn->getFd() << std::endl;
+                std::cerr << "Connection error or closed by peer, fd: " << conn->get_fd() << std::endl;
                 del_epoll(conn->get_fd()); // 移除连接
                 continue;
             }
