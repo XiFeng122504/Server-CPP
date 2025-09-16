@@ -29,6 +29,21 @@ bool Server::Init() {
         return false;
     }
 
+    //  应用所有选项，
+    for (const auto& [key, value] : m_options) {
+        int level = key.first;
+        int optname = key.second;
+        int optval = value ? 1 : 0;
+
+        if (setsockopt(m_nServeFd, level, optname, &optval, sizeof(optval)) < 0) {
+            std::cerr << "设置选项失败: " << strerror(errno) << std::endl;
+            close(m_nServeFd);
+            m_nServeFd = -1;
+            return false;
+        }
+    }
+
+
     //  配置服务器地址
     m_sServer_addr.sin_family = AF_INET;
     m_sServer_addr.sin_addr.s_addr = INADDR_ANY;
