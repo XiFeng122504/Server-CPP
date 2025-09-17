@@ -28,8 +28,7 @@ int main() {
     }
 
     // 设置套接字选项
-    g_server->setOption(SO_REUSEADDR, true);
-    g_server->setOption(SO_KEEPALIVE, true);
+
 
     g_server->Init();
 

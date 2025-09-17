@@ -1,6 +1,7 @@
 #include <Server.h>
 #include <cstring>
 #include <cerrno>
+#include <fcntl.h>
 
 /// @brief 构造函数，设置值为初始值
 ///
@@ -28,6 +29,10 @@ bool Server::Init() {
         std::cerr << "无法创建套接字" << std::endl;
         return false;
     }
+
+    setOption(O_NONBLOCK, true);
+    setOption(SO_REUSEADDR, true);
+    setOption(SO_KEEPALIVE, true);
 
     //  应用所有选项，
     for (const auto& [key, value] : m_options) {
