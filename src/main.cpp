@@ -31,6 +31,11 @@ int main() {
         return 1;
     }
 
+    // 设置套接字选项
+
+
+    g_server->Init();
+
     // 启动服务器
     if (!g_server->Start()) {
         std::cerr << "服务器启动失败" << std::endl;

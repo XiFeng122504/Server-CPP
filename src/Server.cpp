@@ -3,22 +3,6 @@
 #include <cstring>
 #include <cerrno>
 #include <fcntl.h>
-#include <sys/epoll.h>
-
-namespace {
-bool make_socket_non_blocking(int fd) {
-    int flags = fcntl(fd, F_GETFL, 0);
-    if (flags == -1) {
-        std::cerr << "fcntl(F_GETFL) failed: " << strerror(errno) << std::endl;
-        return false;
-    }
-    if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        std::cerr << "fcntl(F_SETFL) failed: " << strerror(errno) << std::endl;
-        return false;
-    }
-    return true;
-}
-} // namespace
 
 /// @brief 构造函数，设置值为初始值
 ///
@@ -46,6 +30,10 @@ bool Server::Init() {
         std::cerr << "无法创建套接字" << std::endl;
         return false;
     }
+
+    setOption(O_NONBLOCK, true);
+    setOption(SO_REUSEADDR, true);
+    setOption(SO_KEEPALIVE, true);
 
     //  应用所有选项，
     for (const auto& [key, value] : m_options) {
