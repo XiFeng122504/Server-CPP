@@ -86,3 +86,7 @@ bool Connection::is_close() {
 bool Connection::write_complete() {
     return m_sWrite_buffer.empty();
 }
+
+int Connection::get_fd() {
+    return m_nClient_fd;
+}
