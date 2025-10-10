@@ -31,6 +31,7 @@ Server::Server(const int port, const int max_Connection) {
     this->m_pEpoll = nullptr;
     this->m_nMAXCONNECTIONS = max_Connection;
     this->m_nPORT = port;
+    this->m_handlerFactory = std::make_shared<protocol::RequestHandlerFactory>();
 }
 
 Server::~Server() {
@@ -77,6 +78,20 @@ bool Server::Init() {
 
     //  新建epoll对象
     m_pEpoll = std::make_unique<Epoll>();
+    m_upload_service = std::make_shared<FileUploadService>(std::filesystem::current_path() / "uploads");
+
+    if (!m_dispatcher) {
+        m_dispatcher = std::make_shared<protocol::RequestDispatcher>();
+        auto echo_handler = std::make_shared<EchoHandler>();
+        auto login_handler = std::make_shared<LoginHandler>();
+        auto file_service = std::make_shared<FileUploadService>("uploads");
+
+        m_dispatcher->register_handler(protocol::MessageType::EchoRequest, echo_handler);
+        m_dispatcher->register_handler(protocol::MessageType::LoginRequest, login_handler);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadBegin, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadChunk, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, file_service);
+    }
 
     if (!m_dispatcher) {
         m_dispatcher = std::make_shared<protocol::RequestDispatcher>();
@@ -92,6 +107,34 @@ bool Server::Init() {
     }
 
     return true;
+}
+
+void Server::register_builtin_handlers() {
+    if (m_handlersRegistered || !m_handlerFactory) {
+        return;
+    }
+
+    m_handlerFactory->register_handler(protocol::MessageType::LoginRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::LoginResponse, message.sequence, "login ok"};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::EchoRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::EchoResponse, message.sequence, message.payload};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::FileReadRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::FileReadResponse, message.sequence, "read not implemented"};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::FileWriteRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::FileWriteResponse, message.sequence, "write not implemented"};
+        });
+
+    m_handlersRegistered = true;
 }
 
 bool Server::Start() {
@@ -168,6 +211,11 @@ void Server::Stop() {
 
     //  重置服务器得状态。
     m_isInit = false;
+
+    if (m_upload_service) {
+        m_upload_service->cleanup_expired();
+        m_upload_service.reset();
+    }
 
     std::cout << "the server is stopped" << std::endl;
 }
