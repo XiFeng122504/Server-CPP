@@ -2,16 +2,28 @@
 #define _CONNECTION_H
 #define BUFFER_SIZE 4096
 #include <string>
+#include <optional>
+#include <vector>
+#include <cstdint>
 #include <unistd.h>
 #include <iostream>
 #include <errno.h>  // 或 <cerrno>
 #include <sys/socket.h>
 
 class Epoll;
+namespace protocol {
+class RequestDispatcher;
+struct Message;
+}
 
 class Connection {
 public:
-    Connection(int client_fd, Epoll* epoll = nullptr);
+    struct SessionInfo {
+        std::string username;
+        std::string role;
+    };
+
+    Connection(int client_fd, Epoll* epoll = nullptr, protocol::RequestDispatcher* dispatcher = nullptr);
     ~Connection();
 
     bool handle_write();
@@ -22,13 +34,23 @@ public:
 
     int get_fd();
 
-    void process_request() {};
+    void send_message(const protocol::Message& message);
+    void append_raw_response(const std::vector<uint8_t>& bytes);
+
+    bool is_authenticated() const;
+    void set_session(const std::string& username, const std::string& role = "user");
+    void clear_session();
+    const std::optional<SessionInfo>& session() const { return m_session; }
+
+    void process_request();
 private:
     Epoll* m_pEpoll;
+    protocol::RequestDispatcher* m_dispatcher;
     int m_nClient_fd;
     std::string m_sRead_buffer;
     std::string m_sWrite_buffer;
     bool m_bClosed;
+    std::optional<SessionInfo> m_session;
 };
 
 #endif//_CONNECTION_H
