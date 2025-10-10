@@ -2,6 +2,7 @@
 #include <Connection.h>
 #include <cstring>
 #include <cerrno>
+#include <filesystem>
 #include <fcntl.h>
 #include <sys/epoll.h>
 
@@ -76,6 +77,7 @@ bool Server::Init() {
 
     //  新建epoll对象
     m_pEpoll = std::make_unique<Epoll>();
+    m_upload_service = std::make_shared<FileUploadService>(std::filesystem::current_path() / "uploads");
 
     return true;
 }
@@ -147,6 +149,7 @@ bool Server::Start() {
 
             auto handler = m_handlerFactory ? m_handlerFactory->create() : nullptr;
             auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), std::move(handler));
+            auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), m_upload_service.get());
             if (!m_pEpoll->add_epoll(client_fd, EPOLLIN | EPOLLRDHUP | EPOLLET, conn)) {
                 close(client_fd);
             }
@@ -185,6 +188,11 @@ void Server::Stop() {
 
     //  重置服务器得状态。
     m_isInit = false;
+
+    if (m_upload_service) {
+        m_upload_service->cleanup_expired();
+        m_upload_service.reset();
+    }
 
     std::cout << "the server is stopped" << std::endl;
 }

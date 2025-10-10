@@ -120,34 +120,25 @@ void Epoll::loop() {
 
             uint32_t current_events = events[i].events;
 
-            // 处理错误或挂起事件
-            if (current_events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
-                std::cerr << "Connection error or closed by peer, fd: " << conn->get_fd() << std::endl;
-                del_epoll(conn->get_fd()); // 移除连接
-                continue;
-            }
+            bool should_close = false;
 
-            // 处理可读事件
             if (current_events & EPOLLIN) {
                 if (!conn->handle_read()) {
-                    std::cerr << "Handle read failed, fd: " << conn->get_fd() << std::endl;
-                    del_epoll(conn->get_fd());
-                    continue;
+                    should_close = true;
                 }
             }
 
-            // 处理可写事件
-            if (current_events & EPOLLOUT) {
+            if (!should_close && (current_events & EPOLLOUT)) {
                 if (!conn->handle_write()) {
                     std::cerr << "Handle write failed, fd: " << conn->get_fd() << std::endl;
-                    del_epoll(conn->get_fd());
-                    continue;
-                }
-
-                // 如果数据已全部发送完毕，可以取消关注EPOLLOUT事件
-                if (conn->write_complete()) {
+                    should_close = true;
+                } else if (conn->write_complete()) {
                     mod_epoll(conn->get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
                 }
+            }
+
+            if (should_close || (current_events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
+                del_epoll(conn->get_fd());
             }
         }
 
