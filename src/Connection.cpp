@@ -1,5 +1,6 @@
 #include "Connection.h"
 #include <cstring>
+#include <sys/epoll.h>
 #include "Epoll.h"
 
 Connection::Connection(int client_fd, Epoll* epoll) {
@@ -89,4 +90,25 @@ bool Connection::write_complete() {
 
 int Connection::get_fd() {
     return m_nClient_fd;
+}
+
+void Connection::process_request() {
+    if (m_sRead_buffer.empty()) {
+        return;
+    }
+
+    m_sWrite_buffer.append(m_sRead_buffer);
+    m_sRead_buffer.clear();
+
+    if (!handle_write()) {
+        if (m_pEpoll) {
+            m_pEpoll->del_epoll(get_fd());
+        }
+        m_bClosed = true;
+        return;
+    }
+
+    if (!m_sWrite_buffer.empty() && m_pEpoll) {
+        m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+    }
 }

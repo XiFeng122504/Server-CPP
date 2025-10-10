@@ -22,7 +22,7 @@ public:
 
     int get_fd();
 
-    void process_request() {};
+    void process_request();
 private:
     Epoll* m_pEpoll;
     int m_nClient_fd;
