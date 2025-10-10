@@ -45,14 +45,17 @@ bool Connection::handle_read() {
         //  已经读取完毕
         else if (bytes_read == 0) {
             std::cout << "客户端关闭连接:" << get_fd() << std::endl;
+            m_bClosed = true;
             return false;
         }
         else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
                 break;
-            else {/*  */
-                std::cerr << "读取数据错误：" << strerror(errno) << std::endl;
             }
+
+            std::cerr << "读取数据错误：" << strerror(errno) << std::endl;
+            m_bClosed = true;
+            return false;
         }
     }
     if (!m_sRead_buffer.empty()) {
