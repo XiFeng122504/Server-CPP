@@ -1,7 +1,14 @@
 #include "Connection.h"
 #include <cstring>
 #include <sys/epoll.h>
+#include <sstream>
+#include <vector>
+#include <algorithm>
+#include <cctype>
 #include "Epoll.h"
+#include "handlers/LoginHandler.h"
+#include "handlers/EchoHandler.h"
+#include "handlers/FileUploadHandler.h"
 
 Connection::Connection(int client_fd, Epoll* epoll) {
     m_nClient_fd = client_fd;
@@ -100,8 +107,75 @@ void Connection::process_request() {
         return;
     }
 
-    m_sWrite_buffer.append(m_sRead_buffer);
-    m_sRead_buffer.clear();
+    size_t newline_pos = std::string::npos;
+    while ((newline_pos = m_sRead_buffer.find('\n')) != std::string::npos) {
+        std::string message = m_sRead_buffer.substr(0, newline_pos);
+        m_sRead_buffer.erase(0, newline_pos + 1);
+        process_message(message);
+        if (m_bClosed) {
+            return;
+        }
+    }
+}
+
+void Connection::process_message(const std::string& message) {
+    if (message.empty()) {
+        return;
+    }
+
+    static LoginHandler login_handler;
+    static EchoHandler echo_handler;
+    static FileUploadHandler file_upload_handler;
+
+    std::istringstream iss(message);
+    std::string command;
+    iss >> command;
+
+    std::string payload;
+    std::getline(iss, payload);
+    if (!payload.empty() && payload.front() == ' ') {
+        payload.erase(0, 1);
+    }
+
+    std::transform(command.begin(), command.end(), command.begin(), [](unsigned char c) { return std::toupper(c); });
+
+    if (command == "LOGIN") {
+        login_handler.handle(*this, payload);
+    } else if (command == "LOGOUT") {
+        if (!session().has_value()) {
+            send_frame("ERROR", "NOT_LOGGED_IN");
+            return;
+        }
+        clear_session();
+        send_frame("LOGOUT_OK", "BYE");
+    } else if (command == "ECHO") {
+        echo_handler.handle(*this, payload);
+    } else if (command == "UPLOAD") {
+        file_upload_handler.handle(*this, payload);
+    } else {
+        send_frame("ERROR", "UNKNOWN_COMMAND");
+    }
+}
+
+const std::optional<UserSession>& Connection::session() const {
+    return m_session;
+}
+
+void Connection::set_session(const UserSession& session) {
+    m_session = session;
+}
+
+void Connection::clear_session() {
+    m_session.reset();
+}
+
+void Connection::send_frame(const std::string& type, const std::string& payload) {
+    m_sWrite_buffer.append(type);
+    if (!payload.empty()) {
+        m_sWrite_buffer.push_back(' ');
+        m_sWrite_buffer.append(payload);
+    }
+    m_sWrite_buffer.push_back('\n');
 
     if (!handle_write()) {
         if (m_pEpoll) {
