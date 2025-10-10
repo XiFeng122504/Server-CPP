@@ -12,6 +12,7 @@ Connection::Connection(int client_fd, Epoll* epoll, protocol::RequestDispatcher*
     m_pEpoll = epoll;
     m_dispatcher = dispatcher;
     m_bClosed = false;
+    m_upload_service = upload_service;
 }
 
 Connection::~Connection() {
@@ -20,6 +21,9 @@ Connection::~Connection() {
     }
     if (m_nClient_fd >= 0) {
         close(m_nClient_fd);
+        if (m_upload_service) {
+            m_upload_service->handle_disconnect(m_nClient_fd);
+        }
     }
 }
 
@@ -35,7 +39,10 @@ bool Connection::handle_write() {
             std::cerr << "写入失败: " << get_fd() << " 错误: " << strerror(errno) << std::endl;
             return false;
         }
-        m_sWrite_buffer.erase(0, result);
+        m_sWrite_buffer.erase(m_sWrite_buffer.begin(), m_sWrite_buffer.begin() + result);
+    }
+    if (m_sWrite_buffer.empty() && m_pEpoll) {
+        m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
     }
 
     if (m_sWrite_buffer.empty() && m_pEpoll) {
@@ -45,12 +52,14 @@ bool Connection::handle_write() {
 }
 bool Connection::handle_read() {
 
-    char buffer[BUFFER_SIZE];
+    std::array<char, BUFFER_SIZE> buffer{};
+    bool peer_closed = false;
 
     while (true) {
         ssize_t bytes_read = read(m_nClient_fd, buffer, BUFFER_SIZE);
         if (bytes_read > 0) {
-            m_sRead_buffer.append(buffer, bytes_read);
+            m_sRead_buffer.insert(m_sRead_buffer.end(), buffer.data(), buffer.data() + bytes_read);
+            continue;
         }
         //  已经读取完毕
         else if (bytes_read == 0) {
@@ -67,10 +76,21 @@ bool Connection::handle_read() {
             m_bClosed = true;
             return false;
         }
+        return false;
     }
     if (!m_sRead_buffer.empty()) {
         process_request();
     }
+
+    if (peer_closed) {
+        std::cout << "客户端关闭连接:" << get_fd() << std::endl;
+        m_bClosed = true;
+        if (m_upload_service) {
+            m_upload_service->handle_disconnect(m_nClient_fd);
+        }
+        return false;
+    }
+
     return true;
 }
 
@@ -80,12 +100,14 @@ bool Connection::handle_err() {
     socklen_t len = sizeof(error);
 
     if (getsockopt(m_nClient_fd, SOL_SOCKET, SO_ERROR, &error, &len) == 0) {
-        //  获取到错误码之后处理 
+        //  获取到错误码之后处理
         //  使用error而不是errno
         if (error) {
             std::cerr << "Socket error :" << strerror(error) << std::endl;
             m_bClosed = true;
-            m_pEpoll->del_epoll(get_fd());
+            if (m_pEpoll) {
+                m_pEpoll->del_epoll(get_fd());
+            }
             close(get_fd());
             m_nClient_fd = -1;
             return false;
