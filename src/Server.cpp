@@ -6,6 +6,9 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 
+#include "protocol/Message.h"
+#include "protocol/RequestHandler.h"
+
 bool Server::make_socket_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1) {
@@ -27,6 +30,7 @@ Server::Server(const int port, const int max_Connection) {
     this->m_pEpoll = nullptr;
     this->m_nMAXCONNECTIONS = max_Connection;
     this->m_nPORT = port;
+    this->m_handlerFactory = std::make_shared<protocol::RequestHandlerFactory>();
 }
 
 Server::~Server() {
@@ -78,11 +82,41 @@ bool Server::Init() {
     return true;
 }
 
+void Server::register_builtin_handlers() {
+    if (m_handlersRegistered || !m_handlerFactory) {
+        return;
+    }
+
+    m_handlerFactory->register_handler(protocol::MessageType::LoginRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::LoginResponse, message.sequence, "login ok"};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::EchoRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::EchoResponse, message.sequence, message.payload};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::FileReadRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::FileReadResponse, message.sequence, "read not implemented"};
+        });
+
+    m_handlerFactory->register_handler(protocol::MessageType::FileWriteRequest,
+        [](const protocol::Message& message, Connection&) -> std::optional<protocol::Message> {
+            return protocol::Message{protocol::MessageType::FileWriteResponse, message.sequence, "write not implemented"};
+        });
+
+    m_handlersRegistered = true;
+}
+
 bool Server::Start() {
     if (!m_isInit) {
         std::cerr << "服务器尚未初始化" << std::endl;
         return false;
     }
+
+    register_builtin_handlers();
 
     if (listen(m_nServeFd, m_nMAXCONNECTIONS) < 0) {
         std::cerr << "监听失败: " << strerror(errno) << std::endl;
@@ -113,6 +147,8 @@ bool Server::Start() {
                 continue;
             }
 
+            auto handler = m_handlerFactory ? m_handlerFactory->create() : nullptr;
+            auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), std::move(handler));
             auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), m_upload_service.get());
             if (!m_pEpoll->add_epoll(client_fd, EPOLLIN | EPOLLRDHUP | EPOLLET, conn)) {
                 close(client_fd);

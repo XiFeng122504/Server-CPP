@@ -16,10 +16,17 @@ class FileUploadService;
 
 #include "UserSession.h"
 
+#include "protocol/Message.h"
+
 class Epoll;
+
+namespace protocol {
+class IRequestHandler;
+}
 
 class Connection {
 public:
+    Connection(int client_fd, Epoll* epoll = nullptr, std::unique_ptr<protocol::IRequestHandler> handler = nullptr);
     Connection(int client_fd, Epoll* epoll = nullptr, FileUploadService* upload_service = nullptr);
     ~Connection();
 
@@ -32,6 +39,9 @@ public:
     int get_fd();
 
     void process_request();
+
+    void send_message(const protocol::Message& message);
+
     void process_message(const std::string& message);
 
     const std::optional<UserSession>& session() const;
@@ -40,11 +50,14 @@ public:
 
     void send_frame(const std::string& type, const std::string& payload = "");
 private:
+    void queue_frame(const std::string& frame);
+
     Epoll* m_pEpoll;
     int m_nClient_fd;
     std::vector<uint8_t> m_sRead_buffer;
     std::vector<uint8_t> m_sWrite_buffer;
     bool m_bClosed;
+    std::unique_ptr<protocol::IRequestHandler> m_handler;
     std::optional<UserSession> m_session;
 };
 
