@@ -25,6 +25,8 @@ void Epoll::stop() {
     }
 
     connections_map.clear();
+    listener_fd = -1;
+    accept_callback = nullptr;
 }
 
 
@@ -67,7 +69,7 @@ bool Epoll::mod_epoll(int fd, uint32_t events) {
 bool Epoll::add_epoll(int fd, uint32_t events, std::shared_ptr<Connection> conn) {
     epoll_event ev{};
     ev.events = events;         // 对这个 fd 关注“可读”事件
-    ev.data.ptr = conn.get();   // 拿到共享指针的指针。 
+    ev.data.ptr = conn.get();   // 拿到共享指针的指针。
 
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
         std::cerr << "epoll_ctl: add failed" << std::endl;
@@ -78,6 +80,7 @@ bool Epoll::add_epoll(int fd, uint32_t events, std::shared_ptr<Connection> conn)
 }
 
 void Epoll::loop() {
+    stopFlag = false;
     //  事件循环一共处理多少个事件。
     const int MAX_EVENTS = 64;
     std::vector<epoll_event> events(MAX_EVENTS);
@@ -93,12 +96,21 @@ void Epoll::loop() {
             if (errno == EINTR) {
                 continue;
             }
+            if (stopFlag) {
+                break;
+            }
             std::cerr << "epoll_wait error: " << errno << std::endl;
             break;
         }
 
         // 处理所有就绪的事件
         for (int i = 0; i < n; ++i) {
+            if (events[i].data.ptr == nullptr) {
+                if (accept_callback) {
+                    accept_callback();
+                }
+                continue;
+            }
             // 获取存储在data.ptr中的Connection对象
             Connection* conn = static_cast<Connection*>(events[i].data.ptr);
             if (!conn) {
@@ -134,7 +146,7 @@ void Epoll::loop() {
 
                 // 如果数据已全部发送完毕，可以取消关注EPOLLOUT事件
                 if (conn->write_complete()) {
-                    mod_epoll(conn->get_fd(), EPOLLIN);
+                    mod_epoll(conn->get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
                 }
             }
         }
@@ -144,4 +156,31 @@ void Epoll::loop() {
 
 
 
+}
+
+bool Epoll::register_listener(int fd, std::function<void()> callback) {
+    if (epoll_fd < 0) {
+        return false;
+    }
+    epoll_event ev{};
+    ev.events = EPOLLIN;
+    ev.data.ptr = nullptr;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) == -1) {
+        std::cerr << "epoll_ctl: add listener failed" << std::endl;
+        return false;
+    }
+    listener_fd = fd;
+    accept_callback = std::move(callback);
+    return true;
+}
+
+void Epoll::unregister_listener() {
+    if (epoll_fd < 0 || listener_fd == -1) {
+        return;
+    }
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_DEL, listener_fd, nullptr) == -1) {
+        std::cerr << "epoll_ctl: del listener failed" << std::endl;
+    }
+    listener_fd = -1;
+    accept_callback = nullptr;
 }
