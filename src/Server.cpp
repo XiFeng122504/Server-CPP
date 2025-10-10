@@ -45,7 +45,7 @@ bool Server::Init() {
         return false;
     }
 
-    if (!make_socket_non_blocking(m_nServeFd)) {
+    if (!Server::make_socket_non_blocking(m_nServeFd)) {
         close(m_nServeFd);
         m_nServeFd = -1;
         return false;
@@ -106,7 +106,7 @@ bool Server::Start() {
                 break;
             }
 
-            if (!make_socket_non_blocking(client_fd)) {
+            if (!Server::make_socket_non_blocking(client_fd)) {
                 close(client_fd);
                 continue;
             }
