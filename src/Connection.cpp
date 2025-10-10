@@ -1,4 +1,5 @@
 #include "Connection.h"
+#include <array>
 #include <cstring>
 #include <sys/epoll.h>
 #include <sstream>
@@ -10,22 +11,25 @@
 #include "handlers/EchoHandler.h"
 #include "handlers/FileUploadHandler.h"
 
-Connection::Connection(int client_fd, Epoll* epoll) {
+Connection::Connection(int client_fd, Epoll* epoll, FileUploadService* upload_service) {
     m_nClient_fd = client_fd;
     m_pEpoll = epoll;
     m_bClosed = false;
+    m_upload_service = upload_service;
 }
 
 Connection::~Connection() {
     if (m_nClient_fd >= 0) {
         close(m_nClient_fd);
+        if (m_upload_service) {
+            m_upload_service->handle_disconnect(m_nClient_fd);
+        }
     }
 }
 
 bool Connection::handle_write() {
-    while (!m_sWrite_buffer.empty())
-    {
-        ssize_t result = write(m_nClient_fd, m_sWrite_buffer.c_str(), m_sWrite_buffer.size());
+    while (!m_sWrite_buffer.empty()) {
+        ssize_t result = write(m_nClient_fd, m_sWrite_buffer.data(), m_sWrite_buffer.size());
 
         if (result < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -35,39 +39,52 @@ bool Connection::handle_write() {
             std::cerr << "写入失败: " << get_fd() << " 错误: " << strerror(errno) << std::endl;
             return false;
         }
-        m_sWrite_buffer.erase(0, result);
+        m_sWrite_buffer.erase(m_sWrite_buffer.begin(), m_sWrite_buffer.begin() + result);
     }
     return true;
 }
 bool Connection::handle_read() {
 
-    char buffer[BUFFER_SIZE];
+    std::array<char, BUFFER_SIZE> buffer{};
+    bool peer_closed = false;
 
     while (true)
     {
-        ssize_t bytes_read = read(m_nClient_fd, buffer, BUFFER_SIZE);
+        ssize_t bytes_read = read(m_nClient_fd, buffer.data(), BUFFER_SIZE);
         if (bytes_read > 0) {
-            m_sRead_buffer.append(buffer, bytes_read);
+            m_sRead_buffer.insert(m_sRead_buffer.end(), buffer.data(), buffer.data() + bytes_read);
+            continue;
         }
-        //  已经读取完毕
-        else if (bytes_read == 0) {
-            std::cout << "客户端关闭连接:" << get_fd() << std::endl;
-            m_bClosed = true;
-            return false;
-        }
-        else {
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                break;
-            }
 
-            std::cerr << "读取数据错误：" << strerror(errno) << std::endl;
-            m_bClosed = true;
-            return false;
+        if (bytes_read == 0) {
+            peer_closed = true;
+            break;
         }
+
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            break;
+        }
+
+        std::cerr << "读取数据错误：" << strerror(errno) << std::endl;
+        m_bClosed = true;
+        if (m_upload_service) {
+            m_upload_service->handle_disconnect(m_nClient_fd);
+        }
+        return false;
     }
     if (!m_sRead_buffer.empty()) {
         process_request();
     }
+
+    if (peer_closed) {
+        std::cout << "客户端关闭连接:" << get_fd() << std::endl;
+        m_bClosed = true;
+        if (m_upload_service) {
+            m_upload_service->handle_disconnect(m_nClient_fd);
+        }
+        return false;
+    }
+
     return true;
 }
 
@@ -177,15 +194,35 @@ void Connection::send_frame(const std::string& type, const std::string& payload)
     }
     m_sWrite_buffer.push_back('\n');
 
-    if (!handle_write()) {
-        if (m_pEpoll) {
-            m_pEpoll->del_epoll(get_fd());
+    while (!m_sRead_buffer.empty()) {
+        Message message;
+        auto decode_result = Message::try_decode(m_sRead_buffer, message);
+        if (decode_result.status == Message::DecodeResult::Incomplete) {
+            break;
         }
-        m_bClosed = true;
-        return;
-    }
 
-    if (!m_sWrite_buffer.empty() && m_pEpoll) {
-        m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
+        if (decode_result.status == Message::DecodeResult::Error) {
+            std::cerr << "Failed to decode message for connection " << m_nClient_fd << std::endl;
+            if (decode_result.bytes_consumed == 0 || decode_result.bytes_consumed > m_sRead_buffer.size()) {
+                m_sRead_buffer.clear();
+            } else {
+                m_sRead_buffer.erase(m_sRead_buffer.begin(), m_sRead_buffer.begin() + decode_result.bytes_consumed);
+            }
+            continue;
+        }
+
+        if (decode_result.bytes_consumed > 0 && decode_result.bytes_consumed <= m_sRead_buffer.size()) {
+            m_sRead_buffer.erase(m_sRead_buffer.begin(), m_sRead_buffer.begin() + decode_result.bytes_consumed);
+        } else {
+            m_sRead_buffer.clear();
+        }
+
+        if (m_upload_service && !m_upload_service->handle_message(m_nClient_fd, message)) {
+            std::cerr << "Upload service failed to handle message for connection " << m_nClient_fd << std::endl;
+        }
     }
+}
+
+void Connection::set_upload_service(FileUploadService* service) {
+    m_upload_service = service;
 }

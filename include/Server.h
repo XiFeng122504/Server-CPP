@@ -1,6 +1,7 @@
 #ifndef _SERVER_H
 #define _SERVER_H
 #include <Epoll.h>
+#include "services/FileUploadService.h"
 #include <sys/socket.h>
 #include <iostream>
 #include <arpa/inet.h>
@@ -52,6 +53,7 @@ private:
 
     //  Epoll实例化对象，用于IO多路复用的epoll方式的封装
     std::unique_ptr<Epoll> m_pEpoll;
+    std::shared_ptr<FileUploadService> m_upload_service;
     //  sockaddr对象，用于存储PORT和接受IP等操作
     struct sockaddr_in m_sServer_addr;
 
