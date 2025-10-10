@@ -41,6 +41,7 @@ public:
     bool setOption(int optname, bool value, int level = SOL_SOCKET);
 
 private:
+    static bool make_socket_non_blocking(int fd);
     bool apply_pending_options();
     //  服务器fd，用于监听其他socket连接本fd
     int m_nServeFd;

@@ -5,8 +5,7 @@
 #include <fcntl.h>
 #include <sys/epoll.h>
 
-namespace {
-bool make_socket_non_blocking(int fd) {
+bool Server::make_socket_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
     if (flags == -1) {
         std::cerr << "fcntl(F_GETFL) failed: " << strerror(errno) << std::endl;
@@ -18,7 +17,6 @@ bool make_socket_non_blocking(int fd) {
     }
     return true;
 }
-} // namespace
 
 /// @brief 构造函数，设置值为初始值
 ///
