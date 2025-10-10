@@ -1,5 +1,6 @@
 #ifndef _EPOLL_H
 #define _EPOLL_H
+#include <functional>
 #include <map>
 #include <memory>
 #include <sys/epoll.h>
@@ -19,11 +20,16 @@ public:
     void loop();
 
     void stop();
+
+    bool register_listener(int fd, std::function<void()> callback);
+    void unregister_listener();
 private:
     int epoll_fd;
     std::map<int, std::shared_ptr<Connection>> connections_map;
 
     bool stopFlag = false;
+    int listener_fd = -1;
+    std::function<void()> accept_callback;
 };
 
 #endif//_EPOLL_H
