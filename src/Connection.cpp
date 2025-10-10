@@ -48,6 +48,10 @@ bool Connection::handle_write() {
     if (m_sWrite_buffer.empty() && m_pEpoll) {
         m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
     }
+
+    if (m_sWrite_buffer.empty() && m_pEpoll) {
+        m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
+    }
     return true;
 }
 bool Connection::handle_read() {

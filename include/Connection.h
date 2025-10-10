@@ -26,10 +26,6 @@ class RequestDispatcher;
 struct Message;
 }
 
-namespace protocol {
-class IRequestHandler;
-}
-
 class Connection {
 public:
     struct SessionInfo {

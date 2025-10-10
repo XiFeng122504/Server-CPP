@@ -93,6 +93,19 @@ bool Server::Init() {
         m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, file_service);
     }
 
+    if (!m_dispatcher) {
+        m_dispatcher = std::make_shared<protocol::RequestDispatcher>();
+        auto echo_handler = std::make_shared<EchoHandler>();
+        auto login_handler = std::make_shared<LoginHandler>();
+        auto file_service = std::make_shared<FileUploadService>("uploads");
+
+        m_dispatcher->register_handler(protocol::MessageType::EchoRequest, echo_handler);
+        m_dispatcher->register_handler(protocol::MessageType::LoginRequest, login_handler);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadBegin, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadChunk, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, file_service);
+    }
+
     return true;
 }
 
