@@ -7,5 +7,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
 include_directories(./include)
-aux_source_directory(${PROJECT_SOURCE_DIR}/src SRC_FILES)
+
+file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS ${PROJECT_SOURCE_DIR}/src/*.cpp)
+
 add_executable(VimUsing ${SRC_FILES})
