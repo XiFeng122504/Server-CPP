@@ -1,12 +1,17 @@
 #include "Connection.h"
+
 #include <cstring>
 #include <sys/epoll.h>
-#include "Epoll.h"
 
-Connection::Connection(int client_fd, Epoll* epoll) {
+#include "Epoll.h"
+#include "protocol/Message.h"
+#include "protocol/RequestHandler.h"
+
+Connection::Connection(int client_fd, Epoll* epoll, std::unique_ptr<protocol::IRequestHandler> handler) {
     m_nClient_fd = client_fd;
     m_pEpoll = epoll;
     m_bClosed = false;
+    m_handler = std::move(handler);
 }
 
 Connection::~Connection() {
@@ -29,6 +34,9 @@ bool Connection::handle_write() {
             return false;
         }
         m_sWrite_buffer.erase(0, result);
+    }
+    if (m_sWrite_buffer.empty() && m_pEpoll) {
+        m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
     }
     return true;
 }
@@ -70,12 +78,14 @@ bool Connection::handle_err() {
     socklen_t len = sizeof(error);
 
     if (getsockopt(m_nClient_fd, SOL_SOCKET, SO_ERROR, &error, &len) == 0) {
-        //  获取到错误码之后处理 
+        //  获取到错误码之后处理
         //  使用error而不是errno
         if (error) {
             std::cerr << "Socket error :" << strerror(error) << std::endl;
             m_bClosed = true;
-            m_pEpoll->del_epoll(get_fd());
+            if (m_pEpoll) {
+                m_pEpoll->del_epoll(get_fd());
+            }
             close(get_fd());
             m_nClient_fd = -1;
             return false;
@@ -96,13 +106,57 @@ int Connection::get_fd() {
 }
 
 void Connection::process_request() {
-    if (m_sRead_buffer.empty()) {
-        return;
+    using namespace protocol;
+
+    while (true) {
+        DecodeResult result = decode_next(m_sRead_buffer);
+        switch (result.status) {
+            case DecodeStatus::NotEnoughData:
+                if (!m_sWrite_buffer.empty()) {
+                    if (!handle_write()) {
+                        if (m_pEpoll) {
+                            m_pEpoll->del_epoll(get_fd());
+                        }
+                        m_bClosed = true;
+                        return;
+                    }
+                }
+                return;
+            case DecodeStatus::InvalidType:
+                send_message(make_error(result.sequence, "unsupported message type"));
+                if (m_bClosed) {
+                    return;
+                }
+                continue;
+            case DecodeStatus::InvalidLength:
+                send_message(make_error(result.sequence, "invalid payload length"));
+                if (m_bClosed) {
+                    return;
+                }
+                continue;
+            case DecodeStatus::Ok:
+                break;
+        }
+
+        if (!result.message.has_value()) {
+            continue;
+        }
+
+        const Message& message = *result.message;
+        if (m_handler) {
+            std::optional<Message> response = m_handler->handle(message, *this);
+            if (response.has_value()) {
+                send_message(*response);
+                if (m_bClosed) {
+                    return;
+                }
+            }
+        }
     }
+}
 
-    m_sWrite_buffer.append(m_sRead_buffer);
-    m_sRead_buffer.clear();
-
+void Connection::send_message(const protocol::Message& message) {
+    queue_frame(protocol::encode(message));
     if (!handle_write()) {
         if (m_pEpoll) {
             m_pEpoll->del_epoll(get_fd());
@@ -110,8 +164,11 @@ void Connection::process_request() {
         m_bClosed = true;
         return;
     }
-
     if (!m_sWrite_buffer.empty() && m_pEpoll) {
         m_pEpoll->mod_epoll(get_fd(), EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLET);
     }
+}
+
+void Connection::queue_frame(const std::string& frame) {
+    m_sWrite_buffer.append(frame);
 }
