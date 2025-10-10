@@ -3,6 +3,7 @@
 #define BUFFER_SIZE 4096
 #include <memory>
 #include <string>
+#include <optional>
 #include <unistd.h>
 #include <iostream>
 #include <errno.h>  // 或 <cerrno>
@@ -12,6 +13,8 @@
 #include "Message.h"
 
 class FileUploadService;
+
+#include "UserSession.h"
 
 class Epoll;
 
@@ -29,14 +32,20 @@ public:
     int get_fd();
 
     void process_request();
-    void set_upload_service(FileUploadService* service);
+    void process_message(const std::string& message);
+
+    const std::optional<UserSession>& session() const;
+    void set_session(const UserSession& session);
+    void clear_session();
+
+    void send_frame(const std::string& type, const std::string& payload = "");
 private:
     Epoll* m_pEpoll;
     int m_nClient_fd;
     std::vector<uint8_t> m_sRead_buffer;
     std::vector<uint8_t> m_sWrite_buffer;
     bool m_bClosed;
-    FileUploadService* m_upload_service;
+    std::optional<UserSession> m_session;
 };
 
 #endif//_CONNECTION_H
