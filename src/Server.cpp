@@ -106,6 +106,43 @@ bool Server::Init() {
         m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, file_service);
     }
 
+    if (!m_dispatcher) {
+        m_dispatcher = std::make_shared<protocol::RequestDispatcher>();
+    }
+
+    if (!register_builtin_handlers()) {
+        std::cerr << "注册内置处理器失败" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool Server::register_builtin_handlers() {
+    if (!m_dispatcher) {
+        return false;
+    }
+
+    if (!m_echoHandler) {
+        m_echoHandler = std::make_shared<EchoHandler>();
+    }
+    if (!m_loginHandler) {
+        m_loginHandler = std::make_shared<LoginHandler>();
+    }
+    if (!m_fileUploadService) {
+        m_fileUploadService = std::make_shared<FileUploadService>("uploads");
+    }
+
+    if (m_handlersRegistered) {
+        return true;
+    }
+
+    m_dispatcher->register_handler(protocol::MessageType::EchoRequest, m_echoHandler);
+    m_dispatcher->register_handler(protocol::MessageType::LoginRequest, m_loginHandler);
+    m_dispatcher->register_handler(protocol::MessageType::FileUploadBegin, m_fileUploadService);
+    m_dispatcher->register_handler(protocol::MessageType::FileUploadChunk, m_fileUploadService);
+    m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, m_fileUploadService);
+    m_handlersRegistered = true;
     return true;
 }
 
