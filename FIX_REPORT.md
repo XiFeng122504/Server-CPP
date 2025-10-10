@@ -3,7 +3,6 @@
 ## 问题概述
 1. 在构建项目时，链接阶段出现 `undefined reference to Connection::get_fd()` 的错误，导致可执行文件无法生成。
 2. 服务器初始化后立即返回，既没有接受连接也没有进入事件循环，无法实现回声功能；`Connection::process_request` 也未将收到的数据写回客户端。
-3. 合并过程导致 `Connection::handle_read` 在遇到除 `EAGAIN`/`EWOULDBLOCK` 之外的错误时只记录日志、不退出循环，出现 CPU 打满且连接无法释放的问题。
 
 ## 处理措施
 1. 在 `src/Connection.cpp` 中新增 `Connection::get_fd` 的函数实现，返回内部维护的文件描述符 `m_nClient_fd`。
