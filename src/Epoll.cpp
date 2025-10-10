@@ -137,8 +137,10 @@ void Epoll::loop() {
                 }
             }
 
-            if (should_close || (current_events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))) {
-                del_epoll(conn->get_fd());
+                // 如果数据已全部发送完毕，可以取消关注EPOLLOUT事件
+                if (conn->write_complete()) {
+                    mod_epoll(conn->get_fd(), EPOLLIN | EPOLLRDHUP | EPOLLET);
+                }
             }
         }
 

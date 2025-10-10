@@ -2,12 +2,13 @@
 #include <Connection.h>
 #include <cstring>
 #include <cerrno>
-#include <filesystem>
 #include <fcntl.h>
 #include <sys/epoll.h>
 
+#include "handlers/EchoHandler.h"
+#include "handlers/LoginHandler.h"
+#include "services/FileUploadService.h"
 #include "protocol/Message.h"
-#include "protocol/RequestHandler.h"
 
 bool Server::make_socket_non_blocking(int fd) {
     int flags = fcntl(fd, F_GETFL, 0);
@@ -79,6 +80,19 @@ bool Server::Init() {
     m_pEpoll = std::make_unique<Epoll>();
     m_upload_service = std::make_shared<FileUploadService>(std::filesystem::current_path() / "uploads");
 
+    if (!m_dispatcher) {
+        m_dispatcher = std::make_shared<protocol::RequestDispatcher>();
+        auto echo_handler = std::make_shared<EchoHandler>();
+        auto login_handler = std::make_shared<LoginHandler>();
+        auto file_service = std::make_shared<FileUploadService>("uploads");
+
+        m_dispatcher->register_handler(protocol::MessageType::EchoRequest, echo_handler);
+        m_dispatcher->register_handler(protocol::MessageType::LoginRequest, login_handler);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadBegin, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadChunk, file_service);
+        m_dispatcher->register_handler(protocol::MessageType::FileUploadEnd, file_service);
+    }
+
     return true;
 }
 
@@ -116,8 +130,6 @@ bool Server::Start() {
         return false;
     }
 
-    register_builtin_handlers();
-
     if (listen(m_nServeFd, m_nMAXCONNECTIONS) < 0) {
         std::cerr << "监听失败: " << strerror(errno) << std::endl;
         return false;
@@ -147,9 +159,7 @@ bool Server::Start() {
                 continue;
             }
 
-            auto handler = m_handlerFactory ? m_handlerFactory->create() : nullptr;
-            auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), std::move(handler));
-            auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), m_upload_service.get());
+            auto conn = std::make_shared<Connection>(client_fd, m_pEpoll.get(), m_dispatcher.get());
             if (!m_pEpoll->add_epoll(client_fd, EPOLLIN | EPOLLRDHUP | EPOLLET, conn)) {
                 close(client_fd);
             }

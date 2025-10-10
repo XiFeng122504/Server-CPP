@@ -1,52 +1,41 @@
 #include "handlers/LoginHandler.h"
 
-#include <chrono>
-#include <sstream>
-#include <unordered_map>
-#include <utility>
-
 #include "Connection.h"
-#include "UserSession.h"
+#include "protocol/Message.h"
 
-namespace {
-std::unordered_map<std::string, LoginHandler::Credential> build_default_credentials() {
-    return {
-        {"alice", {"password123", {"ECHO", "UPLOAD"}}},
-        {"bob", {"hunter2", {"ECHO"}}},
-    };
+LoginHandler::LoginHandler() {
+    // 简单的内存凭证表，实际项目可替换为数据库/配置文件
+    m_credentials.emplace("alice", "password123");
+    m_credentials.emplace("bob", "hunter2");
 }
-} // namespace
 
-LoginHandler::LoginHandler()
-    : m_credentials(build_default_credentials()) {}
-
-LoginHandler::LoginHandler(std::unordered_map<std::string, Credential> credentials)
-    : m_credentials(std::move(credentials)) {}
-
-bool LoginHandler::handle(Connection& connection, const std::string& payload) {
-    if (connection.session().has_value()) {
-        connection.send_frame("ERROR", "ALREADY_LOGGED_IN");
-        return false;
+void LoginHandler::handle(const protocol::Message& message, Connection& connection) {
+    std::string credentials(message.payload.begin(), message.payload.end());
+    auto separator = credentials.find(':');
+    if (separator == std::string::npos) {
+        protocol::Message error{protocol::MessageType::Error};
+        std::string text = "invalid login payload";
+        error.payload.assign(text.begin(), text.end());
+        connection.send_message(error);
+        return;
     }
 
-    std::istringstream iss(payload);
-    std::string username;
-    std::string password;
-    iss >> username >> password;
+    std::string username = credentials.substr(0, separator);
+    std::string password = credentials.substr(separator + 1);
 
-    if (username.empty() || password.empty()) {
-        connection.send_frame("ERROR", "INVALID_LOGIN_FORMAT");
-        return false;
+    auto it = m_credentials.find(username);
+    if (it == m_credentials.end() || it->second != password) {
+        protocol::Message error{protocol::MessageType::Error};
+        std::string text = "authentication failed";
+        error.payload.assign(text.begin(), text.end());
+        connection.send_message(error);
+        return;
     }
 
-    auto iter = m_credentials.find(username);
-    if (iter == m_credentials.end() || iter->second.password != password) {
-        connection.send_frame("ERROR", "INVALID_CREDENTIALS");
-        return false;
-    }
+    connection.set_session(username);
 
-    UserSession session{username, std::chrono::system_clock::now(), iter->second.permissions};
-    connection.set_session(session);
-    connection.send_frame("LOGIN_OK", username);
-    return true;
+    protocol::Message ack{protocol::MessageType::Ack};
+    std::string text = "login success";
+    ack.payload.assign(text.begin(), text.end());
+    connection.send_message(ack);
 }

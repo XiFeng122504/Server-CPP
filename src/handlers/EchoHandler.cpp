@@ -1,13 +1,10 @@
 #include "handlers/EchoHandler.h"
 
 #include "Connection.h"
+#include "protocol/Message.h"
 
-bool EchoHandler::handle(Connection& connection, const std::string& payload) {
-    if (!connection.session().has_value()) {
-        connection.send_frame("ERROR", "NOT_LOGGED_IN");
-        return false;
-    }
-
-    connection.send_frame("ECHO_OK", payload);
-    return true;
+void EchoHandler::handle(const protocol::Message& message, Connection& connection) {
+    protocol::Message response{protocol::MessageType::EchoRequest};
+    response.payload = message.payload;
+    connection.send_message(response);
 }

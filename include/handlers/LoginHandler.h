@@ -1,26 +1,17 @@
-#ifndef SERVER_CPP_HANDLERS_LOGINHANDLER_H
-#define SERVER_CPP_HANDLERS_LOGINHANDLER_H
+#ifndef SERVER_CPP_HANDLERS_LOGIN_HANDLER_H
+#define SERVER_CPP_HANDLERS_LOGIN_HANDLER_H
 
-#include <string>
 #include <unordered_map>
-#include <vector>
+#include <string>
 
-class Connection;
+#include "protocol/RequestDispatcher.h"
 
-class LoginHandler {
+class LoginHandler : public protocol::IRequestHandler {
 public:
-    struct Credential {
-        std::string password;
-        std::vector<std::string> permissions;
-    };
-
     LoginHandler();
-    explicit LoginHandler(std::unordered_map<std::string, Credential> credentials);
-
-    bool handle(Connection& connection, const std::string& payload);
-
+    void handle(const protocol::Message& message, Connection& connection) override;
 private:
-    std::unordered_map<std::string, Credential> m_credentials;
+    std::unordered_map<std::string, std::string> m_credentials;
 };
 
-#endif // SERVER_CPP_HANDLERS_LOGINHANDLER_H
+#endif // SERVER_CPP_HANDLERS_LOGIN_HANDLER_H

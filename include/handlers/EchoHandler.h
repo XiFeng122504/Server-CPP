@@ -1,13 +1,11 @@
-#ifndef SERVER_CPP_HANDLERS_ECHOHANDLER_H
-#define SERVER_CPP_HANDLERS_ECHOHANDLER_H
+#ifndef SERVER_CPP_HANDLERS_ECHO_HANDLER_H
+#define SERVER_CPP_HANDLERS_ECHO_HANDLER_H
 
-#include <string>
+#include "protocol/RequestDispatcher.h"
 
-class Connection;
-
-class EchoHandler {
+class EchoHandler : public protocol::IRequestHandler {
 public:
-    bool handle(Connection& connection, const std::string& payload);
+    void handle(const protocol::Message& message, Connection& connection) override;
 };
 
-#endif // SERVER_CPP_HANDLERS_ECHOHANDLER_H
+#endif // SERVER_CPP_HANDLERS_ECHO_HANDLER_H

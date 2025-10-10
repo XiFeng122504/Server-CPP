@@ -1,52 +1,37 @@
-#pragma once
+#ifndef SERVER_CPP_PROTOCOL_MESSAGE_H
+#define SERVER_CPP_PROTOCOL_MESSAGE_H
 
-#include <cstddef>
 #include <cstdint>
-#include <optional>
 #include <string>
+#include <vector>
+#include <optional>
 
 namespace protocol {
 
-constexpr std::size_t kFrameHeaderSize = sizeof(std::uint16_t) + sizeof(std::uint32_t) + sizeof(std::uint32_t);
-constexpr std::uint32_t kMaxPayloadLength = 1U << 20; // 1 MiB safety limit
-
-enum class MessageType : std::uint16_t {
+enum class MessageType : std::uint8_t {
     LoginRequest = 1,
-    LoginResponse = 2,
-    EchoRequest = 3,
-    EchoResponse = 4,
-    FileReadRequest = 5,
-    FileReadResponse = 6,
-    FileWriteRequest = 7,
-    FileWriteResponse = 8,
-    Error = 0xFFFF
+    EchoRequest = 2,
+    FileUploadBegin = 3,
+    FileUploadChunk = 4,
+    FileUploadEnd = 5,
+    Ack = 100,
+    Error = 101
 };
 
 struct Message {
-    MessageType type{MessageType::Error};
-    std::uint32_t sequence{0};
-    std::string payload;
+    MessageType type{MessageType::EchoRequest};
+    std::vector<std::uint8_t> payload{};
 };
 
-enum class DecodeStatus {
-    Ok,
-    NotEnoughData,
-    InvalidType,
-    InvalidLength
+struct ParseResult {
+    bool success{true};
+    bool needs_more_data{false};
+    std::string error_message{};
 };
 
-struct DecodeResult {
-    DecodeStatus status{DecodeStatus::NotEnoughData};
-    std::optional<Message> message;
-    std::uint32_t sequence{0};
-};
+std::string encode_message(const Message& message);
+ParseResult extract_messages(std::string& buffer, std::vector<Message>& out_messages);
 
-std::string encode(const Message& message);
-DecodeResult decode_next(std::string& buffer);
+}
 
-bool is_valid_type(MessageType type) noexcept;
-const char* to_string(MessageType type) noexcept;
-
-Message make_error(std::uint32_t sequence, const std::string& reason);
-
-} // namespace protocol
+#endif // SERVER_CPP_PROTOCOL_MESSAGE_H
